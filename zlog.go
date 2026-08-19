@@ -49,7 +49,7 @@ func createLogger(name string, logConf logx.LogConf) *Logger {
 	if logConf.Mode == "file" || logConf.Mode == "volume" {
 		_ = os.MkdirAll(logConf.Path, 0755)
 
-		pattern := path.Join(logConf.Path, fmt.Sprintf("%s-%%Y-%%m-%%d.log", name))
+		pattern := path.Join(logConf.Path, fmt.Sprintf("%s-%%Y-%%m-%%d-%%H.log", name))
 
 		linkName := path.Join(logConf.Path, fmt.Sprintf("%s.log", name))
 
@@ -57,7 +57,7 @@ func createLogger(name string, logConf logx.LogConf) *Logger {
 			pattern,
 			rotatelogs.WithLinkName(linkName),
 			rotatelogs.WithMaxAge(time.Duration(logConf.KeepDays)*24*time.Hour),
-			rotatelogs.WithRotationTime(24*time.Hour),
+			rotatelogs.WithRotationTime(1*time.Hour),
 			rotatelogs.WithClock(rotatelogs.Local),
 		)
 		if err != nil {
