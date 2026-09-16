@@ -453,6 +453,68 @@ func TestFileWriterMaxFilesLeavesSiblingFilesAlone(t *testing.T) {
 	}
 }
 
+// KeepDays and MaxBackups are independent: a file goes away when either rule
+// is violated, so the effective window is the stricter of the two.
+func TestFileWriterKeepDaysAndMaxFilesCombined(t *testing.T) {
+	now := time.Date(2026, 9, 16, 10, 0, 0, 0, time.Local)
+
+	setup := func(t *testing.T) string {
+		dir := t.TempDir()
+		for _, hour := range []string{"06", "07", "08", "09"} {
+			p := filepath.Join(dir, "app-2026-09-16-"+hour+".log")
+			if err := os.WriteFile(p, []byte("x\n"), fileMode); err != nil {
+				t.Fatal(err)
+			}
+		}
+		old := time.Now().Add(-48 * time.Hour)
+		stale := filepath.Join(dir, "app-2026-09-14-06.log")
+		if err := os.WriteFile(stale, []byte("x\n"), fileMode); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(stale, old, old); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+
+	t.Run("KeepDays binds", func(t *testing.T) {
+		dir := setup(t)
+		// a large MaxBackups does not protect a file past KeepDays
+		w, err := newFileWriter(writerConfig{
+			dir: dir, name: "app", keepDays: 1, maxFiles: 100,
+		}, func() time.Time { return now })
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer w.Close()
+
+		if _, err := os.Stat(filepath.Join(dir, "app-2026-09-14-06.log")); !os.IsNotExist(err) {
+			t.Fatalf("file past KeepDays must be removed, stat err = %v", err)
+		}
+		if got := ownLogFiles(t, dir, "app"); len(got) != 5 { // 4 kept + current
+			t.Fatalf("retained %v, want 5 files", got)
+		}
+	})
+
+	t.Run("MaxBackups binds", func(t *testing.T) {
+		dir := setup(t)
+		// a large KeepDays does not protect files beyond MaxBackups
+		w, err := newFileWriter(writerConfig{
+			dir: dir, name: "app", keepDays: 30, maxFiles: 2,
+		}, func() time.Time { return now })
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer w.Close()
+
+		got := ownLogFiles(t, dir, "app")
+		want := []string{"app-2026-09-16-09.log", "app-2026-09-16-10.log"}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("retained %v, want %v", got, want)
+		}
+	})
+}
+
 func ownLogFiles(t *testing.T, dir, name string) []string {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join(dir, name+"-*.log"))
