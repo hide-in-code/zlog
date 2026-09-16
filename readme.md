@@ -16,7 +16,7 @@
 `service.ServiceConf`，日志配置字段是 `Log`），按名字创建 logger：
 
     // etc/app.yaml
-    // Name: v2vReceive
+    // Name: demo
     // Log:
     //   Mode: file
     //   Path: logs
@@ -43,8 +43,8 @@
         var c Config
         conf.MustLoad("etc/app.yaml", &c)
 
-        // 名字决定子目录与文件前缀：logs/v2vReceive/v2vReceive-2026-09-16-00.log
-        logger := zlog.NewWithConf("v2vReceive", c.Log)
+        // 名字决定子目录与文件前缀：logs/demo/demo-2026-09-16-00.log
+        logger := zlog.NewWithConf("demo", c.Log)
         defer zlog.CloseAll() // 退出前把所有缓冲刷盘
 
         logger.Info("service started", zap.String("addr", c.Host))
@@ -57,7 +57,7 @@
 业务代码里同样按名字取用即可（同名 logger 是同一个实例，不需要到处传指针）：
 
     func (l *ReceiveLogic) Receive(req *types.Request) error {
-        logger := zlog.NewWithConf("v2vReceive", l.svcCtx.Config.Log)
+        logger := zlog.NewWithConf("demo", l.svcCtx.Config.Log)
         logger.Info("received", zap.String("vin", req.Vin))
         return nil
     }
